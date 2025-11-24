@@ -19,6 +19,7 @@ A simple Android library for generating personalized greeting messages, built wi
 
 - 🎯 **Simple API**: Easy-to-use greeting functionality
 - 🏗️ **Clean Architecture**: Organized with domain, data, and presentation layers
+- 💉 **Dependency Injection**: Powered by Hilt for clean and testable code
 - 🎨 **Jetpack Compose**: Modern declarative UI with Material 3 components
 - ✅ **Well-tested**: Comprehensive unit and instrumentation tests
 - 📱 **Android Library**: Reusable AAR package for integration into any Android project
@@ -103,12 +104,26 @@ classDiagram
     }
     
     class MainViewModel {
-        -repository: GreetingRepositoryImpl
+        <<@HiltViewModel>>
         +useCase: GetGreetingUseCase
+        +@Inject constructor(useCase: GetGreetingUseCase)
     }
     
     class MainActivity {
+        <<@AndroidEntryPoint>>
         +onCreate(savedInstanceState: Bundle)
+    }
+    
+    class GreetingModule {
+        <<@Module>>
+        <<@InstallIn(SingletonComponent)>>
+        +provideGreetingRepository() GreetingRepository
+    }
+    
+    class AppModule {
+        <<@Module>>
+        <<@InstallIn(SingletonComponent)>>
+        +provideGetGreetingUseCase(repository: GreetingRepository) GetGreetingUseCase
     }
     
     GreetingRepositoryImpl ..|> GreetingRepository
@@ -116,10 +131,12 @@ classDiagram
     GetGreetingUseCase --> Greeting
     GreetingRepository --> Greeting
     GreetingComponent --> GetGreetingUseCase
-    MainViewModel --> GreetingRepositoryImpl
     MainViewModel --> GetGreetingUseCase
     MainActivity --> MainViewModel
     MainActivity --> GreetingComponent
+    GreetingModule ..> GreetingRepository
+    AppModule ..> GetGreetingUseCase
+    AppModule --> GreetingRepository
 ```
 
 ### Sequence Diagram - Greeting Flow
@@ -219,7 +236,43 @@ cd greetinglib
 
 ### Usage
 
-#### Basic Implementation
+#### Basic Implementation with Hilt
+
+```kotlin
+// 1. Set up your Application class
+@HiltAndroidApp
+class MyApplication : Application()
+
+// 2. Create your Activity with Hilt
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            MainContent()
+        }
+    }
+}
+
+// 3. Use Hilt ViewModel in your Composable
+@Composable
+fun MainContent() {
+    val viewModel: MainViewModel = hiltViewModel()
+    
+    GreetingComponent(
+        name = "World",
+        useCase = viewModel.useCase
+    )
+}
+
+// 4. Create ViewModel with Hilt injection
+@HiltViewModel
+class MainViewModel @Inject constructor(
+    val useCase: GetGreetingUseCase
+) : ViewModel()
+```
+
+#### Legacy Implementation (Without Hilt)
 
 ```kotlin
 // In your ViewModel or dependency injection setup
@@ -247,11 +300,35 @@ fun MyScreen() {
 
 3. Add to your app's `build.gradle.kts`:
 ```kotlin
+plugins {
+    // ... other plugins
+    id("com.google.dagger.hilt.android")
+    id("kotlin-kapt")
+}
+
 dependencies {
     implementation(files("libs/greetinglib-release.aar"))
     implementation("androidx.compose.material3:material3:1.3.1")
     implementation("androidx.compose.ui:ui:1.7.6")
+    
+    // Hilt dependencies
+    implementation("com.google.dagger:hilt-android:2.50")
+    kapt("com.google.dagger:hilt-android-compiler:2.50")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 }
+```
+
+4. Update your `Application` class:
+```kotlin
+@HiltAndroidApp
+class MyApplication : Application()
+```
+
+5. Update your `AndroidManifest.xml`:
+```xml
+<application
+    android:name=".MyApplication"
+    ... >
 ```
 
 ## API Reference
@@ -270,6 +347,13 @@ interface GreetingRepository {
 }
 ```
 
+#### `GreetingRepositoryImpl`
+```kotlin
+class GreetingRepositoryImpl : GreetingRepository {
+    override fun getGreeting(name: String): Greeting
+}
+```
+
 #### `GetGreetingUseCase`
 ```kotlin
 class GetGreetingUseCase(private val repository: GreetingRepository) {
@@ -281,6 +365,38 @@ class GetGreetingUseCase(private val repository: GreetingRepository) {
 ```kotlin
 @Composable
 fun GreetingComponent(name: String, useCase: GetGreetingUseCase)
+```
+
+### Hilt Modules
+
+#### `GreetingModule` (Library)
+```kotlin
+@Module
+@InstallIn(SingletonComponent::class)
+object GreetingModule {
+    @Provides
+    @Singleton
+    fun provideGreetingRepository(): GreetingRepository
+}
+```
+
+#### Example App Module
+```kotlin
+@Module
+@InstallIn(SingletonComponent::class)
+object AppModule {
+    @Provides
+    @Singleton
+    fun provideGetGreetingUseCase(repository: GreetingRepository): GetGreetingUseCase
+}
+```
+
+#### Example ViewModel
+```kotlin
+@HiltViewModel
+class MainViewModel @Inject constructor(
+    val useCase: GetGreetingUseCase
+) : ViewModel()
 ```
 
 ## Development
@@ -352,6 +468,7 @@ These diagrams are rendered using [Mermaid](https://mermaid.js.org/) syntax and 
 | UI Framework | Jetpack Compose |
 | Design System | Material 3 |
 | Architecture | Clean Architecture |
+| Dependency Injection | Hilt 2.50 |
 | Build System | Gradle (Kotlin DSL) |
 | Testing | JUnit 4, Espresso |
 | Min SDK | 35 |
@@ -372,6 +489,26 @@ Please ensure your code follows the project's coding guidelines and includes app
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Changelog
+
+### [1.1.0] - 2024-11-24
+
+#### Added
+- Hilt dependency injection support
+- Full-screen layout with Scaffold and Material 3 design
+- Preview functions for better development experience
+- Hilt modules for clean dependency management
+
+#### Changed
+- MainActivity now uses `@AndroidEntryPoint` with Hilt
+- MainViewModel updated to `@HiltViewModel` with constructor injection
+- MainContent composable now occupies the whole screen
+- Updated documentation with Hilt integration examples
+
+#### Technical
+- Added Hilt 2.50 dependencies
+- Added Hilt Navigation Compose 1.2.0
+- Fixed unresolved references in MainActivity
+- Enhanced project architecture with dependency injection
 
 ### [1.0.0] - 2024-11-24
 
