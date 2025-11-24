@@ -89,7 +89,8 @@ classDiagram
     GetGreetingUseCase --> Greeting : returns
     
     classDef manual fill:#ffcccc
-    class MainActivity,MainViewModel manual
+    class MainActivity manual
+    class MainViewModel manual
 ```
 
 ### Code Implementation (Previous)
@@ -210,7 +211,7 @@ classDiagram
         +message: String
     }
     
-    MyApplication ||--|| MainActivity : launches
+    MyApplication --> MainActivity : launches
     MainActivity --> MainViewModel : hiltViewModel()
     GreetingModule ..> GreetingRepository : provides
     AppModule ..> GetGreetingUseCase : provides
@@ -276,12 +277,12 @@ class MainActivity : ComponentActivity() {
 
 ```mermaid
 flowchart TD
-    A[Application Start] --> B[@HiltAndroidApp]
+    A[Application Start] --> B["@HiltAndroidApp"]
     B --> C[Component Generation]
     C --> D[Module Registration]
     D --> E[MainActivity Launch]
-    E --> F[@AndroidEntryPoint]
-    F --> G[hiltViewModel()]
+    E --> F["@AndroidEntryPoint"]
+    F --> G["hiltViewModel()"]
     G --> H[Automatic Injection]
     H --> I[Dependencies Ready]
     I --> J[UI Composition]
@@ -562,8 +563,8 @@ gantt
     Hilt Processing   :done, curr-hilt, after curr-compile, 8s
     
     section Total
-    Previous Total    :milestone, prev-total, 15s
-    Current Total     :milestone, curr-total, 23s
+    Previous Total    :milestone, prev-total, 15s, 0s
+    Current Total     :milestone, curr-total, 23s, 0s
 ```
 
 ### Memory Usage Comparison

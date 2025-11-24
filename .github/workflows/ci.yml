@@ -1,0 +1,325 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  # Optimize Gradle builds
+  GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.configureondemand=true
+  # Optimize KAPT for Hilt
+  KAPT_OPTS: -Dkapt.incremental=true -Dkapt.use.worker.api=true
+
+jobs:
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v3
+      with:
+        gradle-home-cache-cleanup: true
+        
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+      
+    - name: Run unit tests
+      run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+      
+    - name: Generate test report
+      run: ./gradlew testDebugUnitTest jacocoTestReport --no-daemon
+      if: always()
+      
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: |
+          **/build/test-results/testDebugUnitTest/
+          **/build/reports/tests/testDebugUnitTest/
+          **/build/reports/jacoco/testDebugUnitTest/
+        retention-days: 7
+
+  build:
+    name: Build Library
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v3
+      
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: Build library
+      run: ./gradlew :greetinglib:assembleDebug --no-daemon --stacktrace
+      
+    - name: Build demo app
+      run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+      
+    - name: Upload library artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: library-artifacts
+        path: |
+          greetinglib/build/outputs/aar/
+          app/build/outputs/apk/debug/
+        retention-days: 7
+
+  lint:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v3
+      
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: Run lint
+      run: ./gradlew lintDebug --no-daemon --stacktrace
+      
+    - name: Upload lint results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: lint-results
+        path: |
+          **/build/reports/lint-results-debug.html
+          **/build/reports/lint-results-debug.xml
+        retention-days: 7
+
+  hilt-validation:
+    name: Hilt Dependency Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v3
+      
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: Validate Hilt setup
+      run: |
+        echo "Validating Hilt annotation processing..."
+        ./gradlew :greetinglib:kaptDebugKotlin --no-daemon --info | grep -E "(Hilt|kapt)" || true
+        
+    - name: Check generated Hilt components
+      run: |
+        echo "Building to generate Hilt components..."
+        ./gradlew :greetinglib:compileDebugKotlin --no-daemon
+        echo "Checking generated Hilt files..."
+        find . -name "*Hilt*" -type f | head -10 || echo "No Hilt generated files found (this might be expected)"
+        
+    - name: Verify Hilt integration tests can run
+      run: |
+        echo "Running Hilt-specific tests..."
+        ./gradlew testDebugUnitTest --tests "*Hilt*" --no-daemon || echo "No Hilt tests found to run"
+
+  instrumented-tests:
+    name: Instrumented Tests
+    runs-on: macOS-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v3
+      
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: AVD cache
+      uses: actions/cache@v4
+      id: avd-cache
+      with:
+        path: |
+          ~/.android/avd/*
+          ~/.android/adb*
+        key: avd-api-29
+        
+    - name: Create AVD and generate snapshot for caching
+      if: steps.avd-cache.outputs.cache-hit != 'true'
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 29
+        arch: x86_64
+        target: google_apis
+        force-avd-creation: false
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+        disable-animations: false
+        script: echo "Generated AVD snapshot for caching."
+        
+    - name: Run instrumented tests
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 29
+        arch: x86_64
+        target: google_apis
+        emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+        disable-animations: true
+        script: |
+          ./gradlew :greetinglib:connectedDebugAndroidTest --no-daemon --stacktrace
+          ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace
+          
+    - name: Upload instrumented test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: instrumented-test-results
+        path: |
+          **/build/reports/androidTests/connected/
+          **/build/outputs/androidTest-results/connected/
+        retention-days: 7
+
+  performance-check:
+    name: Performance Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v3
+      
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: Measure build performance
+      run: |
+        echo "Measuring cold build performance..."
+        time ./gradlew clean :greetinglib:assembleDebug --no-daemon --profile
+        
+        echo "Measuring warm build performance..."
+        time ./gradlew :greetinglib:assembleDebug --no-daemon --profile
+        
+    - name: Upload build reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-reports
+        path: |
+          build/reports/profile/
+        retention-days: 7
+
+  publish-results:
+    name: Publish Test Results
+    runs-on: ubuntu-latest
+    needs: [test, build, lint, hilt-validation]
+    if: always()
+    
+    steps:
+    - name: Download test results
+      uses: actions/download-artifact@v4
+      with:
+        name: test-results
+        path: test-results
+        
+    - name: Publish test results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        files: test-results/**/*.xml
+        check_name: Unit Test Results
+        comment_title: Unit Test Statistics

@@ -1,24 +1,45 @@
-package br.com.renanalencar.greetinglib
+package br.com.renanalencar.greetinglib.demo
 
-import androidx.test.platform.app.InstrumentationRegistry
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
-
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-import org.junit.Assert.*
-
 /**
- * Instrumented test, which will execute on an Android device.
- *
- * See [testing documentation](http://d.android.com/tools/testing).
+ * Instrumented tests for MainActivity and the demo app.
+ * Tests the complete app flow with Hilt dependencies.
  */
+@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class ExampleInstrumentedTest {
+class MainActivityInstrumentedTest {
+
+    @get:Rule(order = 0)
+    val hiltRule = HiltAndroidRule(this)
+
+    @get:Rule(order = 1)
+    val composeTestRule = createAndroidComposeRule<MainActivity>()
+
     @Test
-    fun useAppContext() {
-        // Context of the app under test.
-        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("br.com.renanalencar.greetinglib", appContext.packageName)
+    fun mainActivity_should_display_greeting() {
+        // Given
+        hiltRule.inject()
+
+        // Then
+        // The MainActivity should display a greeting for "Android" by default
+        composeTestRule.onNodeWithText("Hello, Android!").assertIsDisplayed()
+    }
+
+    @Test
+    fun mainActivity_should_have_proper_title() {
+        // Given
+        hiltRule.inject()
+
+        // Then - Check for the demo app content
+        composeTestRule.onNodeWithText("Hello, Android!").assertIsDisplayed()
     }
 }

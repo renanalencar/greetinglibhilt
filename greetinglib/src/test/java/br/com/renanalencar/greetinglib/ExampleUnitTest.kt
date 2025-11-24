@@ -1,17 +1,42 @@
 package br.com.renanalencar.greetinglib
 
+import br.com.renanalencar.greetinglib.data.repository.GreetingRepositoryImpl
+import br.com.renanalencar.greetinglib.domain.usecase.GetGreetingUseCase
 import org.junit.Test
-
 import org.junit.Assert.*
 
 /**
- * Example local unit test, which will execute on the development machine (host).
- *
- * See [testing documentation](http://d.android.com/tools/testing).
+ * Library integration unit test.
+ * Tests that the library components work together correctly.
  */
-class ExampleUnitTest {
+class LibraryIntegrationTest {
+    
     @Test
-    fun addition_isCorrect() {
-        assertEquals(4, 2 + 2)
+    fun library_integration_should_work_correctly() {
+        // Given
+        val repository = GreetingRepositoryImpl()
+        val useCase = GetGreetingUseCase(repository)
+        val testName = "Library Test"
+        
+        // When
+        val greeting = useCase.execute(testName)
+        
+        // Then
+        assertNotNull(greeting)
+        assertEquals("Hello, Library Test!", greeting.message)
+    }
+    
+    @Test
+    fun library_should_handle_edge_cases() {
+        // Given
+        val repository = GreetingRepositoryImpl()
+        val useCase = GetGreetingUseCase(repository)
+        
+        // When & Then
+        val emptyGreeting = useCase.execute("")
+        assertEquals("Hello, !", emptyGreeting.message)
+        
+        val specialGreeting = useCase.execute("Test & More")
+        assertEquals("Hello, Test & More!", specialGreeting.message)
     }
 }
