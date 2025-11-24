@@ -224,8 +224,11 @@ classDiagram
     
     classDef hilt fill:#e8f5e8
     classDef module fill:#fff3e0
-    class MyApplication,MainActivity,MainViewModel hilt
-    class GreetingModule,AppModule module
+    class MyApplication hilt
+    class MainActivity hilt
+    class MainViewModel hilt
+    class GreetingModule module
+    class AppModule module
 ```
 
 ### Code Implementation (Current)
@@ -563,8 +566,8 @@ gantt
     Hilt Processing   :done, curr-hilt, after curr-compile, 8s
     
     section Total
-    Previous Total    :milestone, prev-total, 15s, 0s
-    Current Total     :milestone, curr-total, 23s, 0s
+    Previous Total    :milestone, prev-total, 15, 0
+    Current Total     :milestone, curr-total, 23, 0
 ```
 
 ### Memory Usage Comparison
